@@ -19,6 +19,7 @@ downloadAndExtractFiles <- function() {
         
         fileURL <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
         
+        
         file <- "data/samsungData.zip"
         if(!file.exists(file)){
                 download.file(url = fileURL,destfile = file ,method = "curl")
@@ -35,53 +36,55 @@ mergeSets <- function(){
         # Activities
         activity_labels = read.table("UCI HAR Dataset/activity_labels.txt", header=FALSE, 
                                     col.names=c("ACTIVITY_ID", "ACTIVITY"))
+        
+        # Load Data
         if (!file.exists("test.raw.RData")) {
                 # Test Data
                 subjects_test = scan("UCI HAR Dataset/test/subject_test.txt", what=integer())
                 x_test = read.table("UCI HAR Dataset/test/X_test.txt", col.names=feature_labels, check.names = FALSE)
                 y_test = scan("UCI HAR Dataset/test/y_test.txt",what=integer())
-                y_test.lookup = activity_labels[,"ACTIVITY"]
+                y_test.activity = activity_labels[,"ACTIVITY"]
                 
-                test_data <- data.frame(subject=subjects_test,activity=y_test.lookup[y_test],x_test,check.names=FALSE)
+                test_data <- data.frame(subject=subjects_test,activity=y_test.activity[y_test],x_test,check.names=FALSE)
                 
                 save(test_data, file="test.raw.RData")
         } else {
                 load("test.raw.RData")
-                message(sprintf("loaded test set from cache"))
         }
         
         if (!file.exists("train.raw.RData")) {
                 # Train Data
                 subjects_train = scan("UCI HAR Dataset/train/subject_train.txt", what=integer())
-                x_train = read.table("UCI HAR Dataset/train/X_train.txt", col.names=feature_labels, check.names = FALSE)
+                x_train = read.table("UCI HAR Dataset/train/X_train.txt", col.names=feature_labels, check.names=FALSE)
                 y_train = scan("UCI HAR Dataset/train/y_train.txt",what=integer())
-                y_train.lookup = activity_labels[,"ACTIVITY"]
+                y_train.activity = activity_labels[,"ACTIVITY"]
                 
-                train_data <- data.frame(subject=subjects_train,activity=y_train.lookup[y_train],x_train,check.names=FALSE)
+                train_data <- data.frame(subject=subjects_train,activity=y_train.activity[y_train],x_train,check.names=FALSE)
                 
                 save(train_data, file="train.raw.RData")
         } else {
                 load("train.raw.RData")
-                message(sprintf("loaded train set from cache"))
+                
         }
         
+        # Merge both Data Sets
         mergedData <- rbind(train_data, test_data)
         mDStd <- grep("std\\(\\)", colnames(mergedData))
         mDMean <- grep("mean\\(\\)", colnames(mergedData))
         joinLabels <- sort(union(mDStd, mDMean))
         
-        return(mergedData[,c(1,2,joinLabels)])
+        mergedData[,c(1,2,joinLabels)]
 }
 
 generateTidyData <- function(mergedData) {
-        sa.means <- t(sapply(split(mergedData, list(mergedData$subject, mergedData$activity)), function(z) apply(z[,-c(1,2)],2,mean)))
-        sub.act <- do.call("rbind", strsplit(rownames(sa.means), split="\\."))
-        tFinal <- data.frame( SUBJECT=as.numeric(sub.act[,1]), 
-                              ACTIVITY=sub.act[,2],
-                              sa.means,
+        
+        subjectAndActivitiesMeans <- t(sapply(split(mergedData, list(mergedData$subject, mergedData$activity)), function(z) apply(z[,-c(1,2)],2,mean)))
+        subjectActivities <- do.call("rbind", strsplit(rownames(subjectAndActivitiesMeans), split="\\."))
+        out <- data.frame( SUBJECT=as.numeric(subjectActivities[,1]), 
+                              ACTIVITY=subjectActivities[,2],
+                              subjectAndActivitiesMeans,
                               check.names=FALSE,
                               row.names=NULL)
-        write.table(tFinal, file="tidyData.txt", quote=FALSE, row.names=FALSE)
+        # Save tidy data
+        write.table(out, file="outTidyData.txt", quote=FALSE, row.names=FALSE)
 }
-
-makeTidyDataSet()
